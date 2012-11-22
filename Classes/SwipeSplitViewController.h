@@ -13,14 +13,16 @@
 	UIImageView *_masterContainerView;
 	UIViewController *_masterViewController;
 	UIViewController *_detailViewController;
-	
+
 	UIView *_shieldView;
+	BOOL _isMasterFrameInLandscapeHidden;
 }
 
 @property (nonatomic, strong) UIImageView *masterContainerView;
 @property (nonatomic, strong, readonly) UIViewController *masterViewController;
 @property (nonatomic, strong, readonly) UIViewController *detailViewController;
 @property (nonatomic, strong) UIView *shieldView;
+@property (nonatomic, assign) BOOL isMasterFrameInLandscapeHidden;
 
 - (id)initWithMasterViewController:(UIViewController *)masterVC detailViewController:(UIViewController *)detailVC;
 - (void)showMasterViewControllerAnimated:(BOOL)animated;

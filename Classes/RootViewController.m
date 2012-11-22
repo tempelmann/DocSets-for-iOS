@@ -169,6 +169,10 @@
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+- (void)didReceiveMemoryWarning
+{
+	[super didReceiveMemoryWarning];
+}
 
 @end
 

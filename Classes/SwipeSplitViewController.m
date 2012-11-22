@@ -20,7 +20,7 @@
 @implementation SwipeSplitViewController
 
 @synthesize masterContainerView=_masterContainerView, masterViewController=_masterViewController, detailViewController=_detailViewController;
-@synthesize shieldView=_shieldView;
+@synthesize shieldView=_shieldView, isMasterFrameInLandscapeHidden=_isMasterFrameInLandscapeHidden;
 
 - (id)initWithMasterViewController:(UIViewController *)masterVC detailViewController:(UIViewController *)detailVC
 {
@@ -62,9 +62,20 @@
 	[_masterContainerView addSubview:self.masterViewController.view];
 	[self.view addSubview:_masterContainerView];
 	
-	UISwipeGestureRecognizer *rightSwipeRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(rightSwipe:)];
-	rightSwipeRecognizer.direction = UISwipeGestureRecognizerDirectionRight;
-	[self.detailViewController.view addGestureRecognizer:rightSwipeRecognizer];
+	UISwipeGestureRecognizer *swipeRecognizer;
+	swipeRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(rightSwipe:)];
+	swipeRecognizer.direction = UISwipeGestureRecognizerDirectionRight;
+	[self.detailViewController.view addGestureRecognizer:swipeRecognizer];
+
+	swipeRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(rightSwipe2Fingers:)];
+	swipeRecognizer.direction = UISwipeGestureRecognizerDirectionRight;
+	swipeRecognizer.numberOfTouchesRequired = 2;
+	[self.detailViewController.view addGestureRecognizer:swipeRecognizer];
+
+	swipeRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(leftSwipe2Fingers:)];
+	swipeRecognizer.direction = UISwipeGestureRecognizerDirectionLeft;
+	swipeRecognizer.numberOfTouchesRequired = 2;
+	[self.detailViewController.view addGestureRecognizer:swipeRecognizer];
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -77,7 +88,9 @@
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
 {
 	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation) && UIInterfaceOrientationIsPortrait(toInterfaceOrientation)) {
-		[self.masterViewController viewWillDisappear:(duration > 0)];
+		if (!self.isMasterFrameInLandscapeHidden) {
+			[self.masterViewController viewWillDisappear:(duration > 0)];
+		}
 	}
 	if (self.shieldView) {
 		[self.shieldView removeFromSuperview];
@@ -94,7 +107,7 @@
 	CGSize boundsSize = self.view.bounds.size;
 	CGRect masterFrame;
 	CGRect detailFrame;
-	if (UIInterfaceOrientationIsPortrait(self.interfaceOrientation)) {
+	if (UIInterfaceOrientationIsPortrait(self.interfaceOrientation) || self.isMasterFrameInLandscapeHidden) {
 		masterFrame = CGRectMake(-MASTER_VIEW_WIDTH_PORTRAIT, 0, MASTER_VIEW_WIDTH_PORTRAIT, boundsSize.height);
 		detailFrame = self.view.bounds;
 	} else {
@@ -114,28 +127,38 @@
 	}
 	
 	if (UIInterfaceOrientationIsLandscape(fromInterfaceOrientation) && UIInterfaceOrientationIsPortrait(self.interfaceOrientation)) {
-		[self.masterViewController viewDidDisappear:YES];
+		if (!self.isMasterFrameInLandscapeHidden) {
+			[self.masterViewController viewDidDisappear:YES];
+		}
 	}
 }
 
 - (void)showMasterViewControllerAnimated:(BOOL)animated
 {
-	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation)) {
-		return;
-	}
-	
 	[self.masterViewController viewWillAppear:animated];
 	
 	CGSize boundsSize = self.view.bounds.size;
-	CGRect masterFrame = CGRectMake(0, 0, MASTER_VIEW_WIDTH_PORTRAIT, boundsSize.height);
-	
-	self.masterContainerView.image = [UIImage imageNamed:@"Shadow.png"];
+	CGRect masterFrame;
+	CGRect detailFrame = {0};
+	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation)) {
+		masterFrame = CGRectMake(0, 0, MASTER_VIEW_WIDTH_LANDSCAPE, boundsSize.height);
+		detailFrame = CGRectMake(MASTER_VIEW_WIDTH_LANDSCAPE + 1, 0, boundsSize.width - MASTER_VIEW_WIDTH_LANDSCAPE - 1, boundsSize.height);
+		self.masterContainerView.image = nil;
+		self.isMasterFrameInLandscapeHidden = NO;
+	} else {
+		masterFrame = CGRectMake(0, 0, MASTER_VIEW_WIDTH_PORTRAIT, boundsSize.height);
+		self.masterContainerView.image = [UIImage imageNamed:@"Shadow.png"];
+	}
 	
 	void(^transition)(void) = ^(void) {
 		self.masterContainerView.frame = CGRectInset(masterFrame, -3, -3);
+		self.masterViewController.view.frame = CGRectInset(self.masterContainerView.bounds, 3, 3);
+		if (detailFrame.size.height > 0) {
+			self.detailViewController.view.frame = detailFrame;
+		}
 	};
 	
-	if (!self.shieldView) {
+	if (!self.shieldView && UIInterfaceOrientationIsPortrait(self.interfaceOrientation)) {
 		_shieldView = [[UIView alloc] initWithFrame:self.view.bounds];
 		_shieldView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 		_shieldView.backgroundColor = [UIColor clearColor];
@@ -165,9 +188,6 @@
 
 - (void)hideMasterViewControllerAnimated:(BOOL)animated
 {
-	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation)) {
-		return;
-	}
 	void(^transition)(void) = ^(void) {
 		[self.masterViewController viewWillDisappear:animated];
 		[self layoutViewControllers];
@@ -190,12 +210,27 @@
 
 - (void)rightSwipe:(UISwipeGestureRecognizer *)recognizer
 {
-	if (UIInterfaceOrientationIsPortrait(self.interfaceOrientation)) {
+	if (UIInterfaceOrientationIsPortrait(self.interfaceOrientation) || self.isMasterFrameInLandscapeHidden) {
 		[self showMasterViewControllerAnimated:YES];
-	} else {
+	} else if (!self.isMasterFrameInLandscapeHidden) {
 		if ([self.masterViewController isKindOfClass:[UINavigationController class]]) {
 			[(UINavigationController *)self.masterViewController popViewControllerAnimated:YES];
 		}
+	}
+}
+
+- (void)leftSwipe2Fingers:(UISwipeGestureRecognizer *)recognizer
+{
+	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation) && !self.isMasterFrameInLandscapeHidden) {
+		self.isMasterFrameInLandscapeHidden = YES;
+		[self hideMasterViewControllerAnimated:YES];
+	}
+}
+
+- (void)rightSwipe2Fingers:(UISwipeGestureRecognizer *)recognizer
+{
+	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation) && self.isMasterFrameInLandscapeHidden) {
+		[self showMasterViewControllerAnimated:YES];
 	}
 }
 
@@ -208,11 +243,17 @@
 
 - (void)shieldViewTapped:(UITapGestureRecognizer *)recognizer
 {
+	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation)) {
+		return;
+	}
 	[self hideMasterViewControllerAnimated:YES];
 }
 
 - (void)shieldViewLeftSwipe:(UISwipeGestureRecognizer *)recognizer
 {
+	if (UIInterfaceOrientationIsLandscape(self.interfaceOrientation)) {
+		return;
+	}
 	[self hideMasterViewControllerAnimated:YES];
 }
 
